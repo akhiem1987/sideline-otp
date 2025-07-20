@@ -21,6 +21,7 @@
   <script>
     const apiKey = "jI2NOQNevdeEzdBaAqiQr4PKKdecUy"
     const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
+    let lastId = null
 
     async function getID() {
       const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
@@ -38,6 +39,7 @@
         }
 
         const oldId = match.split('|')[0]
+        lastId = oldId
         result.textContent = `📦 ID hiện tại: ${oldId}`
       } catch (err) {
         result.textContent = `❌ Lỗi khi tải data.txt: ${err.message}`
@@ -60,8 +62,8 @@
         }
 
         const oldId = match.split('|')[0]
+        lastId = oldId
 
-        // Step 1: getExtraActivation
         result.textContent = '🔄 Renewing activation ID...'
         const extraUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)}`
 
@@ -84,9 +86,9 @@
           return
         }
 
-        result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
+        lastId = newId
+        result.textContent = `📦 ID mới: ${newId}\n⌛ Đang chờ mã OTP...`
 
-        // Step 2: getStatus loop
         await pollOTPStatus(newId)
 
       } catch (err) {
@@ -95,26 +97,14 @@
     }
 
     async function checkStatus() {
-      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
       const result = document.getElementById('result')
-
-      try {
-        const dataText = await fetch('data.txt').then(r => r.text())
-        const lines = dataText.trim().split('\n')
-        const match = lines.find(line => line.split('|')[1] === phone)
-
-        if (!match) {
-          result.textContent = '❌ Không tìm thấy ID cho số này.'
-          return
-        }
-
-        const currentId = match.split('|')[0]
-        result.textContent = `🔎 Đang kiểm tra OTP cho ID: ${currentId}`
-
-        await pollOTPStatus(currentId)
-      } catch (err) {
-        result.textContent = `❌ Error: ${err.message}`
+      if (!lastId) {
+        result.textContent = '❌ Chưa có ID nào được lưu từ trước.'
+        return
       }
+
+      result.textContent = `🔎 Kiểm tra OTP với ID: ${lastId}`
+      await pollOTPStatus(lastId)
     }
 
     async function pollOTPStatus(id) {
@@ -134,20 +124,24 @@
         console.log("Status response:", statusResp)
         if (statusResp.startsWith('STATUS_OK:')) {
           const otp = statusResp.split(':')[1].trim()
-          result.textContent = `✅ OTP: ${otp}`
+          result.textContent = `✅ OTP đã nhận được: ${otp}\n📦 Mã này thuộc ID: ${id}`
+          try {
+            await navigator.clipboard.writeText(otp)
+            result.textContent += '\n📋 Đã copy OTP vào clipboard.'
+          } catch {}
           return
         } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
-          result.textContent = `❌ Error: ${statusResp}`
+          result.textContent = `❌ Lỗi: ${statusResp}`
           return
         } else {
-          result.textContent = `⌛ Waiting... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
+          result.textContent = `⌛ Chờ mã... (${attempts + 1}/${maxTries})\nTrạng thái: ${statusResp}`
         }
 
         await new Promise(r => setTimeout(r, 2000))
         attempts++
       }
 
-      result.textContent = '❌ Timeout. No OTP received.'
+      result.textContent = '❌ Hết thời gian. Không nhận được mã OTP.'
     }
   </script>
 
