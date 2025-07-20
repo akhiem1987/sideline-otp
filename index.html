@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
   <title>DaisySMS OTP Fetcher</title>
@@ -23,13 +22,39 @@
     const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
     let lastId = null
 
+    function cleanPhone(raw) {
+      return raw.replace(/[^\d]/g, '').replace(/^1/, '')
+    }
+
     async function getID() {
-      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
+      const phone = cleanPhone(document.getElementById('phone').value)
       const result = document.getElementById('result')
       result.textContent = '🔍 Đang tìm ID...'
 
       try {
-        const dataText = await fetch('data.txt?' + Date.now()).then(r => r.text())
+        const dataText = await fetch('data.txt?ts=' + Date.now(), { cache: "no-store" }).then(r => r.text())
+        const lines = dataText.trim().split('\n')
+        const match = lines.find(line => line.split('|')[1] === phone)
+
+        if (!match) {
+          result.textContent = '❌ Không tìm thấy ID cho số này.'
+          return
+        }
+
+        lastId = match.split('|')[0]
+        result.textContent = `📦 ID hiện tại: ${lastId}`
+      } catch (err) {
+        result.textContent = `❌ Lỗi khi tải data.txt: ${err.message}`
+      }
+    }
+
+    async function getOTP() {
+      const phone = cleanPhone(document.getElementById('phone').value)
+      const result = document.getElementById('result')
+      result.textContent = '⏳ Đang tìm ID...'
+
+      try {
+        const dataText = await fetch('data.txt?ts=' + Date.now(), { cache: "no-store" }).then(r => r.text())
         const lines = dataText.trim().split('\n')
         const match = lines.find(line => line.split('|')[1] === phone)
 
@@ -39,67 +64,35 @@
         }
 
         const oldId = match.split('|')[0]
-        lastId = oldId
-        result.textContent = `📦 ID hiện tại: ${oldId}`
-      } catch (err) {
-        result.textContent = `❌ Lỗi khi tải data.txt: ${err.message}`
-      }
-    }
+        result.textContent = `🔄 Renew ID cũ: ${oldId}`
 
-    async function getOTP() {
-      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
-      const result = document.getElementById('result')
-      result.textContent = '⏳ Finding activation ID...'
+        const renewUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)
+        const renewResp = await fetch(renewUrl).then(r => r.text())
 
-      try {
-        const dataText = await fetch('data.txt?' + Date.now()).then(r => r.text())
-        const lines = dataText.trim().split('\n')
-        const match = lines.find(line => line.split('|')[1] === phone)
-
-        if (!match) {
-          result.textContent = '❌ No activation ID found for this phone.'
+        if (!renewResp.startsWith("ASLEEP:")) {
+          result.textContent = '❌ Không thể renew ID. Phản hồi: ' + renewResp
           return
         }
 
-        const oldId = match.split('|')[0]
-        lastId = oldId
-
-        result.textContent = '🔄 Renewing activation ID...'
-        const extraUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)
-
-        let extraResp
-        try {
-          extraResp = await fetch(extraUrl).then(r => r.text())
-        } catch (err) {
-          result.textContent = `❌ Failed to fetch getExtraActivation: ${err.message}`
-          return
-        }
-
-        if (!extraResp.startsWith('ASLEEP:')) {
-          result.textContent = '❌ Failed to renew. Response: ' + extraResp
-          return
-        }
-
-        const newId = extraResp.split(':')[1].trim()
-        if (!/^[0-9]+$/.test(newId)) {
-          result.textContent = `❌ Invalid new ID format: ${newId}`
+        const newId = renewResp.split(':')[1].trim()
+        if (!/^\d+$/.test(newId)) {
+          result.textContent = '❌ Lỗi: ID mới không hợp lệ: ' + newId
           return
         }
 
         lastId = newId
         result.textContent = `📦 ID mới: ${newId}\n⌛ Đang chờ mã OTP...`
-
         await pollOTPStatus(newId)
 
       } catch (err) {
-        result.textContent = `❌ Unexpected error: ${err.message}`
+        result.textContent = '❌ Lỗi trong quá trình getOTP: ' + err.message
       }
     }
 
     async function checkStatus() {
       const result = document.getElementById('result')
       if (!lastId) {
-        result.textContent = '❌ Chưa có ID nào được lưu từ trước.'
+        result.textContent = '❌ Chưa có ID nào được lưu.'
         return
       }
 
@@ -109,41 +102,42 @@
 
     async function pollOTPStatus(id) {
       const result = document.getElementById('result')
-      let attempts = 0, maxTries = 15
-      while (attempts < maxTries) {
-        const statusUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`)
+      let tries = 0, maxTries = 15
 
+      while (tries < maxTries) {
+        const url = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`)
         let statusResp
+
         try {
-          statusResp = await fetch(statusUrl).then(r => r.text())
+          statusResp = await fetch(url).then(r => r.text())
         } catch (err) {
-          result.textContent = `❌ Failed to fetch status: ${err.message}`
+          result.textContent = `❌ Không thể gọi API trạng thái: ${err.message}`
           return
         }
 
-        console.log("Status response:", statusResp)
+        console.log("Trạng thái:", statusResp)
+
         if (statusResp.startsWith('STATUS_OK:')) {
           const otp = statusResp.split(':')[1].trim()
-          result.textContent = `✅ OTP đã nhận được: ${otp}\n📦 Mã này thuộc ID: ${id}`
+          result.textContent = `✅ Mã OTP: ${otp}\n📦 ID: ${id}`
           try {
             await navigator.clipboard.writeText(otp)
             result.textContent += '\n📋 Đã copy OTP vào clipboard.'
           } catch {}
           return
-        } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
+        } else if (statusResp.includes("NO_ACTIVATION") || statusResp.includes("BAD")) {
           result.textContent = `❌ Lỗi: ${statusResp}`
           return
         } else {
-          result.textContent = `⌛ Chờ mã... (${attempts + 1}/${maxTries})\nTrạng thái: ${statusResp}`
+          result.textContent = `⌛ Chờ mã... (${tries + 1}/${maxTries})\nTrạng thái: ${statusResp}`
         }
 
-        await new Promise(r => setTimeout(r, 2000))
-        attempts++
+        await new Promise(res => setTimeout(res, 2000))
+        tries++
       }
 
-      result.textContent = '❌ Hết thời gian. Không nhận được mã OTP.'
+      result.textContent = '❌ Hết thời gian. Không nhận được mã.'
     }
   </script>
-
 </body>
 </html>
