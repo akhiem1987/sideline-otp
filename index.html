@@ -22,27 +22,32 @@
     const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
 
     async function getID() {
-      const phone = document.getElementById('phone').value.replace(/^\+?1/, '')
+      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
       const result = document.getElementById('result')
       result.textContent = '🔍 Đang tìm ID...'
 
-      const dataText = await fetch('data.txt').then(r => r.text())
-      const lines = dataText.trim().split('\n')
-      const match = lines.find(line => line.split('|')[1] === phone)
+      try {
+        const dataText = await fetch('data.txt').then(r => r.text())
+        const lines = dataText.trim().split('\n')
+        const match = lines.find(line => line.split('|')[1] === phone)
 
-      if (!match) {
-        result.textContent = '❌ Không tìm thấy ID cho số này.'
-        return
+        if (!match) {
+          result.textContent = '❌ Không tìm thấy ID cho số này.'
+          return
+        }
+
+        const oldId = match.split('|')[0]
+        result.textContent = `📦 ID hiện tại: ${oldId}`
+      } catch (err) {
+        result.textContent = `❌ Lỗi khi tải data.txt: ${err.message}`
       }
-
-      const oldId = match.split('|')[0]
-      result.textContent = `📦 ID hiện tại: ${oldId}`
     }
 
     async function getOTP() {
-      const phone = document.getElementById('phone').value.replace(/^\+?1/, '')
+      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
       const result = document.getElementById('result')
       result.textContent = '⏳ Finding activation ID...'
+
       try {
         const dataText = await fetch('data.txt').then(r => r.text())
         const lines = dataText.trim().split('\n')
@@ -59,6 +64,7 @@
         result.textContent = '🔄 Renewing activation ID...'
         const extraUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)}`
         const extraResp = await fetch(extraUrl).then(r => r.text())
+        console.log("getExtraActivation response:", extraResp)
 
         if (!extraResp.startsWith('ASLEEP:')) {
           result.textContent = '❌ Failed to renew. Response: ' + extraResp
@@ -66,14 +72,21 @@
         }
 
         const newId = extraResp.split(':')[1].trim()
+        if (!/^\d+$/.test(newId)) {
+          result.textContent = `❌ Invalid new ID format: ${newId}`
+          return
+        }
+
         result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
 
         // Step 2: getStatus loop
         let attempts = 0, maxTries = 15
         while (attempts < maxTries) {
           const statusUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${newId}`)}`
+          console.log("Checking status at:", statusUrl)
           try {
             const statusResp = await fetch(statusUrl).then(r => r.text())
+            console.log("Status response:", statusResp)
             if (statusResp.startsWith('STATUS_OK:')) {
               const otp = statusResp.split(':')[1].trim()
               result.textContent = `✅ OTP: ${otp}`
