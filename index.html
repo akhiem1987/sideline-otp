@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,40 +7,69 @@
   <style>
     body { font-family: Arial, sans-serif; padding: 2em; background-color: #f7f7f7; }
     .container { max-width: 500px; margin: auto; background: white; padding: 2em; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    input, button { width: 100%; padding: 10px; margin-top: 10px; font-size: 16px; }
+    input, button, textarea { width: 100%; padding: 10px; margin-top: 10px; font-size: 16px; }
+    textarea { resize: vertical; }
     .result { margin-top: 20px; padding: 1em; background: #eee; border-radius: 5px; word-break: break-word; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>Lấy mã OTP Sideline</h2>
-    <div id="loginForm">
-      <input type="password" id="adminPassword" placeholder="Nhập mật khẩu quản trị">
-      <button onclick="login()">Đăng nhập</button>
+    <h2>Sideline OTP</h2>
+
+    <div id="roleSelect">
+      <button onclick="selectRole('user')">User</button>
+      <button onclick="selectRole('admin')">Admin</button>
+    </div>
+
+    <div id="loginForm" class="hidden">
+      <input type="password" id="adminPassword" placeholder="Enter admin password">
+      <button onclick="login()">Login</button>
       <div id="loginResult" class="result"></div>
     </div>
 
     <div id="otpSection" class="hidden">
-      <input type="text" id="apiKeyInput" placeholder="Nhập API Key (mặc định nếu để trống)">
-      <input type="text" id="phoneInput" placeholder="Nhập số điện thoại (ví dụ: +14022106159)">
-      <button onclick="getOTPByPhone()">Lấy OTP</button>
+      <div id="apiKeyBlock">
+        <input type="text" id="apiKeyInput" placeholder="Enter API Key (optional if blank)">
+        <button onclick="saveApiKey()">Save API Key</button>
+      </div>
+      <input type="text" id="phoneInput" placeholder="Enter phone number or ID">
+      <button onclick="getOTP()">Get OTP</button>
       <div id="result" class="result"></div>
+    </div>
+
+    <div id="adminTools" class="hidden">
       <hr>
-      <h3>Xuất dữ liệu số/ID</h3>
-      <button onclick="exportPhoneMap()">Tải file ID_PhoneMap.json</button>
+      <h3>Export ID/Phone data</h3>
+      <button onclick="exportPhoneMap()">Download ID_PhoneMap.json</button>
+
+      <hr>
+      <h3>Import ID/Phone data</h3>
+      <textarea id="importInput" rows="6" placeholder="Paste lines: ID|phone\nID|phone\n..."></textarea>
+      <button onclick="importPhoneMap()">Import</button>
+      <div id="importResult" class="result"></div>
     </div>
   </div>
 
   <script>
     const proxyBaseURL = "https://slotp1.akhiem-1987.workers.dev";
     const adminPass = "akhiem2025";
-    let apiKey = "MQgRf8W6ANC12H0HyUPCfiACv3O6sr";
+    let selectedRole = "user";
+    let apiKey = localStorage.getItem("savedApiKey") || "O3eMFTCi0dAvRjXwqriuAk8Eoh6Spf";
 
-    const phoneMap = [
-      { "phone": "+14022106159", "id": "297045661" },
-      { "phone": "+13177409890", "id": "297045672" }
-    ];
+    let phoneMap = JSON.parse(localStorage.getItem("savedPhoneMap") || "[]");
+
+    function selectRole(role) {
+      selectedRole = role;
+      document.getElementById("roleSelect").classList.add("hidden");
+
+      if (role === 'admin') {
+        document.getElementById("loginForm").classList.remove("hidden");
+      } else {
+        document.getElementById("otpSection").classList.remove("hidden");
+        document.getElementById("apiKeyBlock").style.display = "none";
+      }
+    }
 
     function login() {
       const inputPass = document.getElementById("adminPassword").value;
@@ -48,56 +77,75 @@
       if (inputPass === adminPass) {
         document.getElementById("loginForm").classList.add("hidden");
         document.getElementById("otpSection").classList.remove("hidden");
+        document.getElementById("adminTools").classList.remove("hidden");
+        document.getElementById("apiKeyBlock").style.display = "block";
+        document.getElementById("apiKeyInput").value = apiKey;
       } else {
-        resultBox.innerHTML = "Sai mật khẩu quản trị.";
+        resultBox.innerHTML = "Wrong admin password.";
       }
     }
 
-    async function getOTPByPhone() {
-      const phone = document.getElementById("phoneInput").value.trim();
+    function saveApiKey() {
+      const keyInput = document.getElementById("apiKeyInput").value.trim();
+      if (keyInput) {
+        apiKey = keyInput;
+        localStorage.setItem("savedApiKey", apiKey);
+        alert("API key saved.");
+      }
+    }
+
+    async function getOTP() {
+      const input = document.getElementById("phoneInput").value.trim();
       const keyInput = document.getElementById("apiKeyInput").value.trim();
       const resultBox = document.getElementById("result");
-      if (keyInput) apiKey = keyInput; // cập nhật API Key nếu có nhập mới
 
-      if (!phone) return resultBox.innerHTML = "Vui lòng nhập số điện thoại.";
-
-      const match = phoneMap.find(entry => entry.phone === phone);
-      if (!match) {
-        resultBox.innerHTML = "Không tìm thấy ID cho số điện thoại này.";
-        return;
+      if (selectedRole === 'admin' && keyInput) {
+        apiKey = keyInput;
+        localStorage.setItem("savedApiKey", apiKey);
       }
 
-      const id = match.id;
-      resultBox.innerHTML = `Đang kiểm tra mã OTP cho ID: ${id}...`;
+      if (!input) return resultBox.innerHTML = "Please enter a phone number or ID.";
 
-      try {
-        const [extraRes, statusRes] = await Promise.all([
-          fetch(`${proxyBaseURL}/?action=getExtraActivation&id=${id}&apikey=${apiKey}`),
-          fetch(`${proxyBaseURL}/?action=getStatus&id=${id}&apikey=${apiKey}`)
-        ]);
-
-        const [extraText, statusText] = await Promise.all([
-          extraRes.text(),
-          statusRes.text()
-        ]);
-
-        if (extraText.includes("ACCESS_EXTRA_ACTIVATION")) {
-          const parts = extraText.split(":");
-          const sms = parts.slice(2).join(":".trim());
-          resultBox.innerHTML = `<b>Mã OTP (extra):</b> ${sms}`;
+      let id = input;
+      if (!/^\d+$/.test(id)) {
+        const normalized = input.replace(/^[+]?1/, "");
+        const match = phoneMap.find(entry => entry.phone === normalized || entry.phone === input);
+        if (!match) {
+          resultBox.innerHTML = "No ID found for this phone number.";
           return;
         }
+        id = match.id;
+      }
 
-        if (statusText.includes("STATUS_OK")) {
-          const parts = statusText.split(":");
-          const sms = parts.slice(2).join(":".trim());
-          resultBox.innerHTML = `<b>Mã OTP (status):</b> ${sms}`;
-        } else {
-          resultBox.innerHTML = `Không tìm thấy OTP. Trạng thái: ${statusText}`;
+      resultBox.innerHTML = `🔄 Renewing and checking OTP for ID: ${id}...`;
+
+      try {
+        // Step 1: getExtraActivation
+        const extraUrl = `${proxyBaseURL}/fetch?url=https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${id}`;
+        const extraResp = await fetch(extraUrl);
+        const extraText = await extraResp.text();
+
+        const asleepMatch = extraText.match(/ASLEEP:(\d+)/);
+        if (!asleepMatch) {
+          resultBox.innerHTML = `❌ Cannot find renewed ID. Response: ${extraText}`;
+          return;
         }
+        const newId = asleepMatch[1];
 
+        // Step 2: getStatus for new ID
+        const statusUrl = `${proxyBaseURL}/fetch?url=https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${newId}`;
+        const statusResp = await fetch(statusUrl);
+        const otpText = await statusResp.text();
+
+        if (otpText.includes("STATUS_OK")) {
+          resultBox.innerHTML = `<b>✅ OTP:</b> ${otpText.split(':')[1]}`;
+        } else if (otpText.includes("WAIT_")) {
+          resultBox.innerHTML = `⏳ Waiting for OTP... Status: ${otpText}`;
+        } else {
+          resultBox.innerHTML = `❌ No OTP found. Status: ${otpText}`;
+        }
       } catch (err) {
-        resultBox.innerHTML = `Lỗi khi kết nối máy chủ. Kiểm tra lại đường dẫn proxy hoặc thử lại sau.<br><small>${err.message}</small>`;
+        resultBox.innerHTML = `⚠️ Error: ${err.message}`;
       }
     }
 
@@ -110,6 +158,31 @@
       a.download = "ID_PhoneMap.json";
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    function importPhoneMap() {
+      const input = document.getElementById("importInput").value;
+      const resultBox = document.getElementById("importResult");
+      try {
+        const lines = input.trim().split("\n");
+        let newMap = [];
+        lines.forEach(line => {
+          const parts = line.split("|");
+          if (parts.length === 2) {
+            const id = parts[0].trim();
+            let phone = parts[1].trim();
+            if (phone.startsWith("+1")) phone = phone.slice(2);
+            if (id && phone) {
+              newMap.push({ id, phone });
+            }
+          }
+        });
+        phoneMap = newMap;
+        localStorage.setItem("savedPhoneMap", JSON.stringify(phoneMap));
+        resultBox.innerHTML = `✅ ${newMap.length} entries imported successfully.`;
+      } catch (e) {
+        resultBox.innerHTML = "❌ Failed to import. Check the format (ID|phone).";
+      }
     }
   </script>
 </body>
