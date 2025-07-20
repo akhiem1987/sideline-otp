@@ -1,0 +1,62 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sideline OTP</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2em; background-color: #f7f7f7; }
+    .container { max-width: 500px; margin: auto; background: white; padding: 2em; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, button { width: 100%; padding: 10px; margin-top: 10px; font-size: 16px; }
+    .result { margin-top: 20px; padding: 1em; background: #eee; border-radius: 5px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Lấy mã OTP Sideline</h2>
+    <input type="text" id="activationId" placeholder="Nhập Activation ID" value="298845604">
+    <button onclick="getOTP()">Lấy OTP</button>
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const apiKey = "MQgRf8W6ANC12H0HyUPCfiACv3O6sr"; // Cập nhật key mới
+
+    async function getOTP() {
+      const id = document.getElementById("activationId").value.trim();
+      const resultBox = document.getElementById("result");
+      if (!id) return resultBox.innerHTML = "Vui lòng nhập ID đơn hàng";
+
+      resultBox.innerHTML = "Đang kiểm tra mã OTP...";
+
+      try {
+        // Gọi getExtraActivation
+        const extraRes = await fetch(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${id}`);
+        const extraText = await extraRes.text();
+
+        if (extraText.includes("ACCESS_EXTRA_ACTIVATION")) {
+          const parts = extraText.split(":");
+          const sms = parts.slice(2).join(":").trim();
+          resultBox.innerHTML = `<b>Mã OTP:</b> ${sms}`;
+          return;
+        }
+
+        // Nếu không có, fallback sang getStatus
+        const statusRes = await fetch(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`);
+        const statusText = await statusRes.text();
+
+        if (statusText.includes("STATUS_OK")) {
+          const sms = statusText.split(":").slice(2).join(":").trim();
+          resultBox.innerHTML = `<b>Mã OTP (status):</b> ${sms}`;
+        } else {
+          resultBox.innerHTML = `Không tìm thấy OTP. Trạng thái: ${statusText}`;
+        }
+
+      } catch (err) {
+        resultBox.innerHTML = `Lỗi: ${err.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
