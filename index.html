@@ -1,120 +1,122 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DaisySMS OTP Tool</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
-  <script defer>
-    let API_KEY = localStorage.getItem('daisy_api_key') || '';
-    const isAdmin = localStorage.getItem('daisy_is_admin') === 'true';
-
-```
-async function fetchData() {
-  const res = await fetch('https://slotp1.akhiem-1987.workers.dev/data?ts=' + Date.now());
-  return await res.json();
-}
-
-async function getCodeByPhone() {
-  const phone = document.getElementById('phone').value.trim();
-  const statusBox = document.getElementById('status');
-  if (!phone) return alert('Enter phone number.');
-
-  statusBox.innerText = '🔍 Searching...';
-  const data = await fetchData();
-  const match = data.find(row => row.phone === phone);
-
-  if (!match) {
-    statusBox.innerText = '❌ No activation ID found for this phone.';
-    return;
-  }
-
-  statusBox.innerText = '🔄 Fetching code...';
-  try {
-    const url = `https://slotp1.akhiem-1987.workers.dev/fetch?url=${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${API_KEY}&action=getStatus&id=${match.id}`)}`;
-    const response = await fetch(url);
-    const result = await response.text();
-
-    if (result.startsWith('STATUS_OK')) {
-      const code = result.split(':')[1];
-      statusBox.innerText = `✅ OTP: ${code}`;
-    } else if (result === 'STATUS_WAIT_CODE') {
-      statusBox.innerText = '⏳ Waiting for code...';
-    } else {
-      statusBox.innerText = `❌ ${result}`;
-    }
-  } catch (e) {
-    statusBox.innerText = '❌ Failed to fetch status.';
-  }
-}
-
-function loginAdmin() {
-  const key = prompt('Enter API Key');
-  const pass = prompt('Enter admin password');
-  if (pass === 'admin123') { // Bạn nên thay mật khẩu này
-    localStorage.setItem('daisy_api_key', key);
-    localStorage.setItem('daisy_is_admin', 'true');
-    alert('✅ Admin logged in');
-    location.reload();
-  } else {
-    alert('❌ Incorrect password');
-  }
-}
-
-function logoutAdmin() {
-  localStorage.clear();
-  location.reload();
-}
-
-async function uploadDataFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const text = await file.text();
-  const res = await fetch('https://slotp1.akhiem-1987.workers.dev/upload', {
-    method: 'POST',
-    body: text
-  });
-  if (res.ok) alert('✅ Data uploaded.');
-  else alert('❌ Upload failed.');
-}
-```
-
-  </script>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
   <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl p-6 space-y-4">
     <h1 class="text-2xl font-bold text-center">🔐 DaisySMS OTP Tool</h1>
 
-```
-<div>
-  <input id="phone" type="text" placeholder="Enter phone number"
-    class="w-full border px-4 py-2 rounded-lg focus:outline-none focus:ring" />
-</div>
+    <div>
+      <input id="phone" type="text" placeholder="Enter phone number"
+        class="w-full border px-4 py-2 rounded-lg focus:outline-none focus:ring" />
+    </div>
 
-<div class="flex space-x-2">
-  <button onclick="getCodeByPhone()"
-    class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Get OTP</button>
-  <button onclick="loginAdmin()"
-    class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Admin</button>
-  <button onclick="logoutAdmin()"
-    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</button>
-</div>
+    <div class="flex space-x-2">
+      <button id="getOtpBtn"
+        class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Get OTP</button>
+      <button id="adminLoginBtn"
+        class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Admin</button>
+    </div>
 
-<div id="status" class="text-center text-lg font-medium text-gray-800"></div>
+    <div id="status" class="text-center text-lg font-medium text-gray-800"></div>
 
-<div id="admin-panel" class="mt-4 space-y-2" style="display: none;">
-  <input type="file" accept=".txt" onchange="uploadDataFile(event)"
-    class="w-full border px-4 py-2 rounded-lg" />
-  <p class="text-sm text-gray-500">Upload new data.txt file</p>
-</div>
-```
-
+    <div id="admin-panel" class="mt-4 space-y-2 hidden">
+      <input type="file" accept=".txt" id="uploadFile"
+        class="w-full border px-4 py-2 rounded-lg" />
+      <button id="logoutBtn"
+        class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</button>
+      <p class="text-sm text-gray-500">Upload new data.txt file</p>
+    </div>
   </div>
 
+  <!-- Script moved to end of body -->
   <script>
-    if (isAdmin) document.getElementById('admin-panel').style.display = 'block';
-  </script>
+    let API_KEY = localStorage.getItem('daisy_api_key') || '';
+    const isAdmin = localStorage.getItem('daisy_is_admin') === 'true';
 
+    async function fetchData() {
+      try {
+        const res = await fetch('https://slotp1.akhiem-1987.workers.dev/data?ts=' + Date.now());
+        return await res.json();
+      } catch (e) {
+        return [];
+      }
+    }
+
+    async function getCodeByPhone() {
+      const phone = document.getElementById('phone').value.trim();
+      const statusBox = document.getElementById('status');
+      if (!phone) return alert('Enter phone number.');
+
+      statusBox.innerText = '🔍 Searching...';
+      const data = await fetchData();
+      const match = data.find(row => row.phone === phone);
+
+      if (!match) {
+        statusBox.innerText = '❌ No activation ID found for this phone.';
+        return;
+      }
+
+      statusBox.innerText = '🔄 Fetching code...';
+      try {
+        const url = `https://slotp1.akhiem-1987.workers.dev/fetch?url=${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${API_KEY}&action=getStatus&id=${match.id}`)}`;
+        const response = await fetch(url);
+        const result = await response.text();
+
+        if (result.startsWith('STATUS_OK')) {
+          const code = result.split(':')[1];
+          statusBox.innerText = `✅ OTP: ${code}`;
+        } else if (result === 'STATUS_WAIT_CODE') {
+          statusBox.innerText = '⏳ Waiting for code...';
+        } else {
+          statusBox.innerText = `❌ ${result}`;
+        }
+      } catch (e) {
+        statusBox.innerText = '❌ Failed to fetch status.';
+      }
+    }
+
+    function loginAdmin() {
+      const key = prompt('Enter API Key');
+      const pass = prompt('Enter admin password');
+      if (pass === 'admin123') {
+        localStorage.setItem('daisy_api_key', key);
+        localStorage.setItem('daisy_is_admin', 'true');
+        alert('✅ Admin logged in');
+        location.reload();
+      } else {
+        alert('❌ Incorrect password');
+      }
+    }
+
+    function logoutAdmin() {
+      localStorage.clear();
+      location.reload();
+    }
+
+    async function uploadDataFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      const res = await fetch('https://slotp1.akhiem-1987.workers.dev/upload', {
+        method: 'POST',
+        body: text
+      });
+      if (res.ok) alert('✅ Data uploaded.');
+      else alert('❌ Upload failed.');
+    }
+
+    // DOM loaded bindings
+    document.getElementById('getOtpBtn').onclick = getCodeByPhone;
+    document.getElementById('adminLoginBtn').onclick = loginAdmin;
+    document.getElementById('logoutBtn').onclick = logoutAdmin;
+    document.getElementById('uploadFile').onchange = uploadDataFile;
+
+    if (isAdmin) document.getElementById('admin-panel').classList.remove('hidden');
+  </script>
 </body>
 </html>
