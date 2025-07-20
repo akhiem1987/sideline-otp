@@ -65,7 +65,7 @@
           return
         }
 
-        const newId = extraResp.split(':')[1]
+        const newId = extraResp.split(':')[1].trim()
         result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
 
         // Step 2: getStatus loop
@@ -75,8 +75,7 @@
           try {
             const statusResp = await fetch(statusUrl).then(r => r.text())
             if (statusResp.startsWith('STATUS_OK:')) {
-              const parts = statusResp.split(':')
-              const otp = parts[1]
+              const otp = statusResp.split(':')[1].trim()
               result.textContent = `✅ OTP: ${otp}`
               return
             } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
