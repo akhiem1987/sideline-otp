@@ -5,166 +5,75 @@
   <title>DaisySMS OTP Fetcher</title>
   <style>
     body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-    input, button { padding: 8px; margin: 4px 0; width: 100%; max-width: 300px; display: block; }
-    button { cursor: pointer; }
+    input { padding: 8px; width: 250px; }
+    button { padding: 8px 12px; margin-left: 8px; }
     pre { background: #fff; padding: 12px; border: 1px solid #ccc; white-space: pre-wrap; word-wrap: break-word; }
-    .admin-panel { background: #e2f0d9; padding: 10px; margin-top: 10px; border: 1px solid #b3d7a4; }
-    .hidden { display: none; }
   </style>
 </head>
 <body>
   <h2>DaisySMS OTP Fetcher</h2>
-
-  <div id="authPanel">
-    <input type="text" id="adminUser" placeholder="Admin username">
-    <input type="password" id="adminPass" placeholder="Password">
-    <button onclick="loginAdmin()">Đăng nhập Admin</button>
-  </div>
-
-  <div id="adminPanel" class="admin-panel hidden">
-    <h3>🔐 Khu vực Admin</h3>
-    <label>API Key mới:</label>
-    <input type="text" id="apiKeyInput" placeholder="API Key">
-    <button onclick="saveApiKey()">💾 Lưu API Key</button>
-
-```
-<label>Upload file data.txt mới:</label>
-<input type="file" id="fileUpload">
-<button onclick="uploadData()">📤 Tải lên</button>
-```
-
-  </div>
-
-  <input type="text" id="phone" placeholder="Nhập số điện thoại (10 số)" />
-  <button onclick="getOTP()">Lấy OTP</button>
-  <button onclick="getID()">Gọi ID</button>
-  <button onclick="checkStatus()">Check OTP từ ID</button>
-
-  <pre id="result">Chờ nhập số và nhấn nút...</pre>
+  <input type="text" id="phone" placeholder="Enter phone number (10 digits)" />
+  <button onclick="getOTP()">Get OTP</button>
+  <pre id="result">Waiting for input...</pre>
 
   <script>
+    const apiKey = "jI2NOQNevdeEzdBaAqiQr4PKKdecUy"
     const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
     let lastId = null
-    let dataList = []
-
-    function loginAdmin() {
-      const u = document.getElementById('adminUser').value
-      const p = document.getElementById('adminPass').value
-      if (u === 'admin' && p === '123456') {
-        document.getElementById('adminPanel').classList.remove('hidden')
-        document.getElementById('authPanel').classList.add('hidden')
-      } else {
-        alert("Sai tài khoản hoặc mật khẩu")
-      }
-    }
-
-    function saveApiKey() {
-      const key = document.getElementById('apiKeyInput').value.trim()
-      if (key) {
-        localStorage.setItem('daisy_api_key', key)
-        alert("Đã lưu API Key")
-      }
-    }
-
-    function getApiKey() {
-      return localStorage.getItem('daisy_api_key') || '08sEPggm5bgFuX0fAHHg6V3SQlJiHg'
-    }
-
-    function uploadData() {
-      const file = document.getElementById('fileUpload').files[0]
-      if (!file) return alert("Chọn file trước")
-      const reader = new FileReader()
-      reader.onload = function(e) {
-        const content = e.target.result.trim().split('\n')
-        localStorage.setItem('daisy_data_list', JSON.stringify(content))
-        alert("Đã tải lên data mới")
-      }
-      reader.readAsText(file)
-    }
-
-    function getStoredData() {
-      try {
-        return JSON.parse(localStorage.getItem('daisy_data_list') || '[]')
-      } catch { return [] }
-    }
-
-    async function getID() {
-      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
-      const result = document.getElementById('result')
-      result.textContent = '🔍 Đang tìm ID...'
-
-      const lines = getStoredData()
-      const match = lines.find(line => line.split('|')[1] === phone)
-
-      if (!match) {
-        result.textContent = '❌ Không tìm thấy ID cho số này.'
-        return
-      }
-
-      const oldId = match.split('|')[0]
-      lastId = oldId
-      result.textContent = `📦 ID hiện tại: ${oldId}`
-    }
 
     async function getOTP() {
       const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
       const result = document.getElementById('result')
-      result.textContent = '⏳ Tìm ID...'
+      result.textContent = '⏳ Finding activation ID...'
 
-      const lines = getStoredData()
-      const match = lines.find(line => line.split('|')[1] === phone)
-
-      if (!match) {
-        result.textContent = '❌ Không tìm thấy ID cho số này.'
-        return
-      }
-
-      const oldId = match.split('|')[0]
-      lastId = oldId
-      result.textContent = '🔄 Đang renew ID...'
-
-      const apiKey = getApiKey()
-      const extraUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)
-
-      let extraResp
       try {
-        extraResp = await fetch(extraUrl).then(r => r.text())
+        const dataText = await fetch('data.txt?' + Date.now()).then(r => r.text())
+        const lines = dataText.trim().split('\n')
+        const match = lines.find(line => line.split('|')[1] === phone)
+
+        if (!match) {
+          result.textContent = '❌ No activation ID found for this phone.'
+          return
+        }
+
+        const oldId = match.split('|')[0]
+        lastId = oldId
+
+        result.textContent = '🔄 Renewing activation ID...'
+        const extraUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)
+
+        let extraResp
+        try {
+          extraResp = await fetch(extraUrl).then(r => r.text())
+        } catch (err) {
+          result.textContent = `❌ Failed to fetch getExtraActivation: ${err.message}`
+          return
+        }
+
+        if (!extraResp.startsWith('ASLEEP:')) {
+          result.textContent = '❌ Failed to renew. Response: ' + extraResp
+          return
+        }
+
+        const newId = extraResp.split(':')[1].trim()
+        if (!/^[0-9]+$/.test(newId)) {
+          result.textContent = `❌ Invalid new ID format: ${newId}`
+          return
+        }
+
+        lastId = newId
+        result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
+
+        await pollOTPStatus(newId)
+
       } catch (err) {
-        result.textContent = `❌ Fetch lỗi: ${err.message}`
-        return
+        result.textContent = `❌ Unexpected error: ${err.message}`
       }
-
-      if (!extraResp.startsWith('ASLEEP:')) {
-        result.textContent = '❌ Không renew được. Phản hồi: ' + extraResp
-        return
-      }
-
-      const newId = extraResp.split(':')[1].trim()
-      if (!/^[0-9]+$/.test(newId)) {
-        result.textContent = `❌ ID mới lỗi: ${newId}`
-        return
-      }
-
-      lastId = newId
-      result.textContent = `📦 ID mới: ${newId}\n⌛ Đang chờ mã OTP...`
-      await pollOTPStatus(newId)
-    }
-
-    async function checkStatus() {
-      const result = document.getElementById('result')
-      if (!lastId) {
-        result.textContent = '❌ Chưa có ID nào được lưu từ trước.'
-        return
-      }
-      result.textContent = `🔎 Kiểm tra OTP với ID: ${lastId}`
-      await pollOTPStatus(lastId)
     }
 
     async function pollOTPStatus(id) {
       const result = document.getElementById('result')
-      const apiKey = getApiKey()
       let attempts = 0, maxTries = 60
-
       while (attempts < maxTries) {
         const statusUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`)
 
@@ -172,25 +81,31 @@
         try {
           statusResp = await fetch(statusUrl).then(r => r.text())
         } catch (err) {
-          result.textContent = `❌ Lỗi: ${err.message}`
+          result.textContent = `❌ Failed to fetch status: ${err.message}`
           return
         }
 
+        console.log("Status response:", statusResp)
         if (statusResp.startsWith('STATUS_OK:')) {
           const otp = statusResp.split(':')[1].trim()
-          result.textContent = `✅ OTP: ${otp}\n📦 Thuộc ID: ${id}`
-          try { await navigator.clipboard.writeText(otp); result.textContent += '\n📋 Đã copy OTP.' } catch {}
+          result.textContent = `✅ OTP received: ${otp}\n📦 ID: ${id}`
+          try {
+            await navigator.clipboard.writeText(otp)
+            result.textContent += '\n📋 OTP copied to clipboard.'
+          } catch {}
           return
         } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
-          result.textContent = `❌ Lỗi: ${statusResp}`
+          result.textContent = `❌ Error: ${statusResp}`
           return
         } else {
-          result.textContent = `⌛ Chờ mã... (${attempts + 1}/${maxTries})\nTrạng thái: ${statusResp}`
+          result.textContent = `⌛ Waiting for code... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
         }
+
         await new Promise(r => setTimeout(r, 2000))
         attempts++
       }
-      result.textContent = '❌ Hết thời gian. Không nhận được mã.'
+
+      result.textContent = '❌ Timeout. No OTP received.'
     }
   </script>
 
