@@ -15,25 +15,24 @@
         class="w-full border px-4 py-2 rounded-lg focus:outline-none focus:ring" />
     </div>
 
-    <div class="flex space-x-2">
-      <button id="getOtpBtn"
-        class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Get OTP</button>
-      <button id="adminLoginBtn"
-        class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Admin</button>
-    </div>
+    <button onclick="getCodeByPhone()"
+      class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Get OTP</button>
 
     <div id="status" class="text-center text-lg font-medium text-gray-800"></div>
 
+    <!-- Admin panel, only visible if isAdmin -->
     <div id="admin-panel" class="mt-4 space-y-2 hidden">
-      <input type="file" accept=".txt" id="uploadFile"
+      <input type="file" accept=".txt" onchange="uploadDataFile(event)"
         class="w-full border px-4 py-2 rounded-lg" />
-      <button id="logoutBtn"
-        class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</button>
+      <button onclick="logoutAdmin()"
+        class="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout Admin</button>
       <p class="text-sm text-gray-500">Upload new data.txt file</p>
     </div>
+
+    <!-- Hidden login trigger -->
+    <p class="text-center text-sm text-gray-400 cursor-pointer" onclick="loginAdmin()">Admin login</p>
   </div>
 
-  <!-- Script moved to end of body -->
   <script>
     let API_KEY = localStorage.getItem('daisy_api_key') || '';
     const isAdmin = localStorage.getItem('daisy_is_admin') === 'true';
@@ -110,12 +109,7 @@
       else alert('❌ Upload failed.');
     }
 
-    // DOM loaded bindings
-    document.getElementById('getOtpBtn').onclick = getCodeByPhone;
-    document.getElementById('adminLoginBtn').onclick = loginAdmin;
-    document.getElementById('logoutBtn').onclick = logoutAdmin;
-    document.getElementById('uploadFile').onchange = uploadDataFile;
-
+    // Show admin panel if already logged in
     if (isAdmin) document.getElementById('admin-panel').classList.remove('hidden');
   </script>
 </body>
