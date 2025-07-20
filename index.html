@@ -1,112 +1,119 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en">
 <head>
-  <title>DaisySMS OTP Fetcher</title>
-  <style>
-    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-    input { padding: 8px; width: 250px; }
-    button { padding: 8px 12px; margin-left: 8px; }
-    pre { background: #fff; padding: 12px; border: 1px solid #ccc; white-space: pre-wrap; word-wrap: break-word; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DaisySMS OTP Tool</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+  <script defer>
+    let API_KEY = localStorage.getItem('daisy_api_key') || '';
+    const isAdmin = localStorage.getItem('daisy_is_admin') === 'true';
+
+```
+async function fetchData() {
+  const res = await fetch('https://slotp1.akhiem-1987.workers.dev/data?ts=' + Date.now());
+  return await res.json();
+}
+
+async function getCodeByPhone() {
+  const phone = document.getElementById('phone').value.trim();
+  const statusBox = document.getElementById('status');
+  if (!phone) return alert('Enter phone number.');
+
+  statusBox.innerText = '🔍 Searching...';
+  const data = await fetchData();
+  const match = data.find(row => row.phone === phone);
+
+  if (!match) {
+    statusBox.innerText = '❌ No activation ID found for this phone.';
+    return;
+  }
+
+  statusBox.innerText = '🔄 Fetching code...';
+  try {
+    const url = `https://slotp1.akhiem-1987.workers.dev/fetch?url=${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${API_KEY}&action=getStatus&id=${match.id}`)}`;
+    const response = await fetch(url);
+    const result = await response.text();
+
+    if (result.startsWith('STATUS_OK')) {
+      const code = result.split(':')[1];
+      statusBox.innerText = `✅ OTP: ${code}`;
+    } else if (result === 'STATUS_WAIT_CODE') {
+      statusBox.innerText = '⏳ Waiting for code...';
+    } else {
+      statusBox.innerText = `❌ ${result}`;
+    }
+  } catch (e) {
+    statusBox.innerText = '❌ Failed to fetch status.';
+  }
+}
+
+function loginAdmin() {
+  const key = prompt('Enter API Key');
+  const pass = prompt('Enter admin password');
+  if (pass === 'admin123') { // Bạn nên thay mật khẩu này
+    localStorage.setItem('daisy_api_key', key);
+    localStorage.setItem('daisy_is_admin', 'true');
+    alert('✅ Admin logged in');
+    location.reload();
+  } else {
+    alert('❌ Incorrect password');
+  }
+}
+
+function logoutAdmin() {
+  localStorage.clear();
+  location.reload();
+}
+
+async function uploadDataFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  const res = await fetch('https://slotp1.akhiem-1987.workers.dev/upload', {
+    method: 'POST',
+    body: text
+  });
+  if (res.ok) alert('✅ Data uploaded.');
+  else alert('❌ Upload failed.');
+}
+```
+
+  </script>
 </head>
-<body>
-  <h2>DaisySMS OTP Fetcher</h2>
-  <input type="text" id="phone" placeholder="Enter phone number (10 digits)" />
-  <button onclick="getOTP()">Get OTP</button>
-  <pre id="result">Waiting for input...</pre>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
+  <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl p-6 space-y-4">
+    <h1 class="text-2xl font-bold text-center">🔐 DaisySMS OTP Tool</h1>
+
+```
+<div>
+  <input id="phone" type="text" placeholder="Enter phone number"
+    class="w-full border px-4 py-2 rounded-lg focus:outline-none focus:ring" />
+</div>
+
+<div class="flex space-x-2">
+  <button onclick="getCodeByPhone()"
+    class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Get OTP</button>
+  <button onclick="loginAdmin()"
+    class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">Admin</button>
+  <button onclick="logoutAdmin()"
+    class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</button>
+</div>
+
+<div id="status" class="text-center text-lg font-medium text-gray-800"></div>
+
+<div id="admin-panel" class="mt-4 space-y-2" style="display: none;">
+  <input type="file" accept=".txt" onchange="uploadDataFile(event)"
+    class="w-full border px-4 py-2 rounded-lg" />
+  <p class="text-sm text-gray-500">Upload new data.txt file</p>
+</div>
+```
+
+  </div>
 
   <script>
-    const apiKey = "jI2NOQNevdeEzdBaAqiQr4PKKdecUy"
-    const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
-    let lastId = null
-
-    async function getOTP() {
-      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
-      const result = document.getElementById('result')
-      result.textContent = '⏳ Finding activation ID...'
-
-      try {
-        const dataText = await fetch('data.txt?' + Date.now()).then(r => r.text())
-        const lines = dataText.trim().split('\n')
-        const match = lines.find(line => line.split('|')[1] === phone)
-
-        if (!match) {
-          result.textContent = '❌ No activation ID found for this phone.'
-          return
-        }
-
-        const oldId = match.split('|')[0]
-        lastId = oldId
-
-        result.textContent = '🔄 Renewing activation ID...'
-        const extraUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)
-
-        let extraResp
-        try {
-          extraResp = await fetch(extraUrl).then(r => r.text())
-        } catch (err) {
-          result.textContent = `❌ Failed to fetch getExtraActivation: ${err.message}`
-          return
-        }
-
-        if (!extraResp.startsWith('ASLEEP:')) {
-          result.textContent = '❌ Failed to renew. Response: ' + extraResp
-          return
-        }
-
-        const newId = extraResp.split(':')[1].trim()
-        if (!/^[0-9]+$/.test(newId)) {
-          result.textContent = `❌ Invalid new ID format: ${newId}`
-          return
-        }
-
-        lastId = newId
-        result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
-
-        await pollOTPStatus(newId)
-
-      } catch (err) {
-        result.textContent = `❌ Unexpected error: ${err.message}`
-      }
-    }
-
-    async function pollOTPStatus(id) {
-      const result = document.getElementById('result')
-      let attempts = 0, maxTries = 60
-      while (attempts < maxTries) {
-        const statusUrl = proxy + encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`)
-
-        let statusResp
-        try {
-          statusResp = await fetch(statusUrl).then(r => r.text())
-        } catch (err) {
-          result.textContent = `❌ Failed to fetch status: ${err.message}`
-          return
-        }
-
-        console.log("Status response:", statusResp)
-        if (statusResp.startsWith('STATUS_OK:')) {
-          const otp = statusResp.split(':')[1].trim()
-          result.textContent = `✅ OTP received: ${otp}\n📦 ID: ${id}`
-          try {
-            await navigator.clipboard.writeText(otp)
-            result.textContent += '\n📋 OTP copied to clipboard.'
-          } catch {}
-          return
-        } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
-          result.textContent = `❌ Error: ${statusResp}`
-          return
-        } else {
-          result.textContent = `⌛ Waiting for code... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
-        }
-
-        await new Promise(r => setTimeout(r, 2000))
-        attempts++
-      }
-
-      result.textContent = '❌ Timeout. No OTP received.'
-    }
+    if (isAdmin) document.getElementById('admin-panel').style.display = 'block';
   </script>
 
 </body>
