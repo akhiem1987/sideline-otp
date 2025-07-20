@@ -1,62 +1,105 @@
-async function getOTP() {
-  const phone = document.getElementById('phone').value.replace(/^\+?1/, '')
-  const result = document.getElementById('result')
-  result.textContent = '⏳ Finding activation ID...'
+<!DOCTYPE html>
 
-  try {
-    const dataText = await fetch('data.txt').then(r => r.text())
-    const lines = dataText.trim().split('\n')
-    const match = lines.find(line => line.split('|')[1] === phone)
+<html>
+<head>
+  <title>DaisySMS OTP Fetcher</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+    input { padding: 8px; width: 250px; }
+    button { padding: 8px 12px; margin-left: 8px; }
+    pre { background: #fff; padding: 12px; border: 1px solid #ccc; white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body>
+  <h2>DaisySMS OTP Fetcher</h2>
+  <input type="text" id="phone" placeholder="Nhập số điện thoại (10 số)" />
+  <button onclick="getOTP()">Lấy OTP</button>
+  <button onclick="getID()">Gọi ID</button>
+  <pre id="result">Chờ nhập số và nhấn nút...</pre>
 
-    if (!match) {
-      result.textContent = '❌ No activation ID found for this phone.'
-      return
-    }
+  <script>
+    const apiKey = "jI2NOQNevdeEzdBaAqiQr4PKKdecUy"
+    const proxy = "https://slotp1.akhiem-1987.workers.dev/fetch?url="
 
-    const oldId = match.split('|')[0]
+    async function getID() {
+      const phone = document.getElementById('phone').value.replace(/^\+?1/, '')
+      const result = document.getElementById('result')
+      result.textContent = '🔍 Đang tìm ID...'
 
-    // Step 1: getExtraActivation
-    result.textContent = '🔄 Renewing activation ID...'
-    const extraUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)}`
-    const extraResp = await fetch(extraUrl).then(r => r.text())
+      const dataText = await fetch('data.txt').then(r => r.text())
+      const lines = dataText.trim().split('\n')
+      const match = lines.find(line => line.split('|')[1] === phone)
 
-    if (!extraResp.startsWith('ASLEEP:')) {
-      result.textContent = '❌ Failed to renew. Response: ' + extraResp
-      return
-    }
-
-    const newId = extraResp.split(':')[1]
-    result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
-
-    // Step 2: getStatus loop
-    let attempts = 0, maxTries = 15
-    while (attempts < maxTries) {
-      const statusUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${newId}`)}`
-      try {
-        const statusResp = await fetch(statusUrl).then(r => r.text())
-
-        if (statusResp.startsWith('STATUS_OK:')) {
-          const parts = statusResp.split(':')
-          const otp = parts[1]
-          result.textContent = `✅ OTP: ${otp}`
-          return
-        } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
-          result.textContent = `❌ Error: ${statusResp}`
-          return
-        } else {
-          result.textContent = `⌛ Waiting... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
-        }
-      } catch (err) {
-        result.textContent = `❌ Fetch error: ${err.message}`
+      if (!match) {
+        result.textContent = '❌ Không tìm thấy ID cho số này.'
         return
       }
 
-      await new Promise(r => setTimeout(r, 2000))
-      attempts++
+      const oldId = match.split('|')[0]
+      result.textContent = `📦 ID hiện tại: ${oldId}`
     }
 
-    result.textContent = '❌ Timeout. No OTP received.'
-  } catch (err) {
-    result.textContent = `❌ Unexpected error: ${err.message}`
-  }
-}
+    async function getOTP() {
+      const phone = document.getElementById('phone').value.replace(/^\+?1/, '')
+      const result = document.getElementById('result')
+      result.textContent = '⏳ Finding activation ID...'
+      try {
+        const dataText = await fetch('data.txt').then(r => r.text())
+        const lines = dataText.trim().split('\n')
+        const match = lines.find(line => line.split('|')[1] === phone)
+
+        if (!match) {
+          result.textContent = '❌ No activation ID found for this phone.'
+          return
+        }
+
+        const oldId = match.split('|')[0]
+
+        // Step 1: getExtraActivation
+        result.textContent = '🔄 Renewing activation ID...'
+        const extraUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)}`
+        const extraResp = await fetch(extraUrl).then(r => r.text())
+
+        if (!extraResp.startsWith('ASLEEP:')) {
+          result.textContent = '❌ Failed to renew. Response: ' + extraResp
+          return
+        }
+
+        const newId = extraResp.split(':')[1]
+        result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
+
+        // Step 2: getStatus loop
+        let attempts = 0, maxTries = 15
+        while (attempts < maxTries) {
+          const statusUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${newId}`)}`
+          try {
+            const statusResp = await fetch(statusUrl).then(r => r.text())
+            if (statusResp.startsWith('STATUS_OK:')) {
+              const parts = statusResp.split(':')
+              const otp = parts[1]
+              result.textContent = `✅ OTP: ${otp}`
+              return
+            } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
+              result.textContent = `❌ Error: ${statusResp}`
+              return
+            } else {
+              result.textContent = `⌛ Waiting... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
+            }
+          } catch (err) {
+            result.textContent = `❌ Fetch error: ${err.message}`
+            return
+          }
+
+          await new Promise(r => setTimeout(r, 2000))
+          attempts++
+        }
+
+        result.textContent = '❌ Timeout. No OTP received.'
+      } catch (err) {
+        result.textContent = `❌ Unexpected error: ${err.message}`
+      }
+    }
+  </script>
+
+</body>
+</html>
