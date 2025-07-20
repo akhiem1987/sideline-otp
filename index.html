@@ -15,6 +15,7 @@
   <input type="text" id="phone" placeholder="Nhập số điện thoại (10 số)" />
   <button onclick="getOTP()">Lấy OTP</button>
   <button onclick="getID()">Gọi ID</button>
+  <button onclick="checkStatus()">Check OTP từ ID</button>
   <pre id="result">Chờ nhập số và nhấn nút...</pre>
 
   <script>
@@ -63,8 +64,14 @@
         // Step 1: getExtraActivation
         result.textContent = '🔄 Renewing activation ID...'
         const extraUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getExtraActivation&activationId=${oldId}`)}`
-        const extraResp = await fetch(extraUrl).then(r => r.text())
-        console.log("getExtraActivation response:", extraResp)
+
+        let extraResp
+        try {
+          extraResp = await fetch(extraUrl).then(r => r.text())
+        } catch (err) {
+          result.textContent = `❌ Failed to fetch getExtraActivation: ${err.message}`
+          return
+        }
 
         if (!extraResp.startsWith('ASLEEP:')) {
           result.textContent = '❌ Failed to renew. Response: ' + extraResp
@@ -80,36 +87,67 @@
         result.textContent = `📦 New ID: ${newId}\n⌛ Waiting for OTP...`
 
         // Step 2: getStatus loop
-        let attempts = 0, maxTries = 15
-        while (attempts < maxTries) {
-          const statusUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${newId}`)}`
-          console.log("Checking status at:", statusUrl)
-          try {
-            const statusResp = await fetch(statusUrl).then(r => r.text())
-            console.log("Status response:", statusResp)
-            if (statusResp.startsWith('STATUS_OK:')) {
-              const otp = statusResp.split(':')[1].trim()
-              result.textContent = `✅ OTP: ${otp}`
-              return
-            } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
-              result.textContent = `❌ Error: ${statusResp}`
-              return
-            } else {
-              result.textContent = `⌛ Waiting... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
-            }
-          } catch (err) {
-            result.textContent = `❌ Fetch error: ${err.message}`
-            return
-          }
+        await pollOTPStatus(newId)
 
-          await new Promise(r => setTimeout(r, 2000))
-          attempts++
-        }
-
-        result.textContent = '❌ Timeout. No OTP received.'
       } catch (err) {
         result.textContent = `❌ Unexpected error: ${err.message}`
       }
+    }
+
+    async function checkStatus() {
+      const phone = document.getElementById('phone').value.replace(/[^\d]/g, '').replace(/^1/, '')
+      const result = document.getElementById('result')
+
+      try {
+        const dataText = await fetch('data.txt').then(r => r.text())
+        const lines = dataText.trim().split('\n')
+        const match = lines.find(line => line.split('|')[1] === phone)
+
+        if (!match) {
+          result.textContent = '❌ Không tìm thấy ID cho số này.'
+          return
+        }
+
+        const currentId = match.split('|')[0]
+        result.textContent = `🔎 Đang kiểm tra OTP cho ID: ${currentId}`
+
+        await pollOTPStatus(currentId)
+      } catch (err) {
+        result.textContent = `❌ Error: ${err.message}`
+      }
+    }
+
+    async function pollOTPStatus(id) {
+      const result = document.getElementById('result')
+      let attempts = 0, maxTries = 15
+      while (attempts < maxTries) {
+        const statusUrl = `${proxy}${encodeURIComponent(`https://daisysms.com/stubs/handler_api.php?api_key=${apiKey}&action=getStatus&id=${id}`)}`
+
+        let statusResp
+        try {
+          statusResp = await fetch(statusUrl).then(r => r.text())
+        } catch (err) {
+          result.textContent = `❌ Failed to fetch status: ${err.message}`
+          return
+        }
+
+        console.log("Status response:", statusResp)
+        if (statusResp.startsWith('STATUS_OK:')) {
+          const otp = statusResp.split(':')[1].trim()
+          result.textContent = `✅ OTP: ${otp}`
+          return
+        } else if (statusResp.includes('NO_ACTIVATION') || statusResp.includes('BAD')) {
+          result.textContent = `❌ Error: ${statusResp}`
+          return
+        } else {
+          result.textContent = `⌛ Waiting... (${attempts + 1}/${maxTries})\nStatus: ${statusResp}`
+        }
+
+        await new Promise(r => setTimeout(r, 2000))
+        attempts++
+      }
+
+      result.textContent = '❌ Timeout. No OTP received.'
     }
   </script>
 
